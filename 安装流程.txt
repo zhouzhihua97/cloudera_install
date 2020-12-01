@@ -1,1 +1,259 @@
+#1.批量配置免密登录
+[root@POCDT01 ~]# yum install -y expect
+[root@POCDT01 ~]# mkdir job
+[root@POCDT01 ~]# cd job/
+[root@POCDT01 job]# vim bashSSH.sh
+[root@POCDT01 job]# vim host.txt
+[root@POCDT01 job]# sh bashSSH.sh
+输入三次回车
+
+#2.配置/etc/hosts文件
+[root@POCDT01 ~]# vim /etc/hosts
+
+#3.安装pssh
+[root@POCDT01 pssh]# tar xvf pssh-2.3.1.tar.gz 
+[root@POCDT01 pssh]# cd pssh-2.3.1/
+[root@POCDT01 pssh-2.3.1]# python setup.py build
+[root@POCDT01 pssh-2.3.1]# python setup.py install
+
+#4.分发hosts文件
+[root@POCDT01 ~]# pscp -h ~/hostList /etc/hosts /etc/
+
+
+#5.关闭防火墙
+[root@POCDT01 ~]# pssh -h ~/hostList -i "systemctl disable firewalld"
+[root@POCDT01 ~]# pssh -h ~/hostList -i "systemctl stop firewalld"
+
+#6.ntp时间同步
+[root@POCDT01 ~]# pssh -h ~/hostList -i "yum install -y ntp ntpdate"
+[root@POCDT01 ~]# pssh -h ~/hostList -i "service ntpd stop"
+[root@POCDT01 ~]# pssh -h ~/hostList -i "ntpdate 10.30.1.207"
+[root@POCDT01 ~]# vim /etc/ntp.conf
+[root@POCDT01 ~]# pscp -h ~/hostList /etc/ntp.conf /etc
+[root@POCDT01 ~]# vim /etc/ntp.conf
+#第二次修改ntp.PNG
+[root@POCDT01 ~]# pssh -h ~/hostList -i "service ntpd start"
+
+#7.透明大页面配置
+[root@POCDT01 ~]# pssh -h ~/hostList -i "sudo sh -c 'echo never > /sys/kernel/mm/transparent_hugepage/defrag'"
+[root@POCDT01 ~]# pssh -h ~/hostList -i "sudo sh -c 'echo never > /sys/kernel/mm/transparent_hugepage/enabled'"
+[root@POCDT01 ~]# vim /etc/rc.d/rc.local
+[root@POCDT01 ~]# pscp -h ~/hostList /etc/rc.d/rc.local /etc/rc.d/
+
+#8.swappiness配置
+[root@POCDT01 ~]# pssh -h ~/hostList -i "sudo sysctl vm.swappiness=1"
+[root@POCDT01 ~]# pssh -h ~/hostList -i "sudo sh -c 'echo 1 > /proc/sys/vm/swappiness'"
+[root@POCDT01 ~]# vim /etc/sysctl.conf
+[root@POCDT01 ~]# pscp -h ~/hostList /etc/sysctl.conf /etc/
+
+#9.配置yum源
+[root@POCDT01 ~]# yum install -y httpd
+[root@POCDT01 ~]# service httpd start
+[root@POCDT01 ~]# mkdir -p /var/www/html/cm
+#将文件上传至cm目录
+#cm文件夹文件列表.PNG
+[root@POCDT01 ~]# createrepo /var/www/html/cm/
+[root@POCDT01 ~]# vim /etc/yum.repos.d/cm.repo
+[root@POCDT01 ~]# yum clean all
+[root@POCDT01 ~]# yum makecache
+
+#10.jdk安装及环境变量配置
+[root@POCDT01 ~]# pssh -h ~/hostList -i "rpm -e --nodeps java-1.8.0-openjdk-1.8.0.131-11.b12.el7.x86_64"
+[root@POCDT01 ~]# pssh -h ~/hostList -i "rpm -e --nodeps java-1.8.0-openjdk-headless-1.8.0.131-11.b12.el7.x86_64"
+[root@POCDT01 ~]# yum install -y jdk
+[root@POCDT01 ~]# vim /etc/profile
+#Java环境变量.PNG
+[root@POCDT01 ~]# source /etc/profile
+
+#11.安装MySQL并配置基础环境
+[root@POCDT01 ~]# rpm -qa|grep mariadb
+mariadb-libs-5.5.56-2.el7.x86_64s
+[root@POCDT01 ~]# rpm -e --nodeps mariadb-libs
+[root@POCDT01 mysqlDir]# tar xvf mysql-5.7.26-1.el7.x86_64.rpm-bundle.tar
+[root@POCDT01 mysqlDir]# rpm -ivh mysql-community-common-5.7.26-1.el7.x86_64.rpm
+[root@POCDT01 mysqlDir]# rpm -ivh mysql-community-libs-5.7.26-1.el7.x86_64.rpm
+[root@POCDT01 mysqlDir]# rpm -ivh mysql-community-client-5.7.26-1.el7.x86_64.rpm
+[root@POCDT01 mysqlDir]# rpm -ivh mysql-community-server-5.7.26-1.el7.x86_64.rpm
+[root@POCDT01 mysqlDir]# rpm -ivh mysql-community-libs-compat-5.7.26-1.el7.x86_64.rpm
+[root@POCDT01 mysqlDir]# vim /etc/my.cnf
+[root@POCDT01 mysqlDir]# mysqld --initialize --user=mysql
+[root@POCDT01 mysqlDir]# service mysqld start
+[root@POCDT01 mysqlDir]# mysql -uroot -p
+#初始化后设置root密码
+mysql> alter user 'root'@'localhost' identified by 'hjtc.2020';
+# cloudera manager server
+mysql> CREATE DATABASE scm DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
+mysql> GRANT ALL ON scm.* TO 'scm'@'%' IDENTIFIED BY 'scm.2020';
+# reports manager
+mysql> CREATE DATABASE rman DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
+mysql> GRANT ALL ON rman.* TO 'rman'@'%' IDENTIFIED BY 'rman.2020';
+# hive metastore server
+mysql> CREATE DATABASE metastore DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
+mysql> GRANT ALL ON metastore.* TO 'hive'@'%' IDENTIFIED BY 'hive.2020';
+# hue
+mysql> CREATE DATABASE hue DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
+mysql> GRANT ALL ON hue.* TO 'hue'@'%' IDENTIFIED BY 'hue.2020';
+# dolphinscheduler
+mysql> CREATE DATABASE dolphinscheduler DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
+mysql> GRANT ALL PRIVILEGES ON dolphinscheduler.* TO 'dolphinscheduler'@'%' IDENTIFIED BY 'dolphin.2020';
+mysql> GRANT ALL PRIVILEGES ON dolphinscheduler.* TO 'dolphinscheduler'@'localhost' IDENTIFIED BY 'dolphin.2020';
+[root@POCDT01 mysql-connector]# tar xvf mysql-connector-java-5.1.47.tar.gz
+[root@POCDT01 mysql-connector]# mv mysql-connector-java-5.1.47/mysql-connector-java-5.1.47.jar /usr/share/java/mysql-connector-java.jar
+
+#12.安装cloudera manager
+[root@POCDT01 ~]# yum install -y cloudera-manager-daemons
+[root@POCDT01 ~]# yum install -y cloudera-manager-agent
+[root@POCDT01 ~]# yum install cloudera-manager-server
+[root@POCDT01 ~]# /opt/cloudera/cm/schema/scm_prepare_database.sh mysql scm scm scm.2020
+[root@POCDT01 ~]# mv files/CDH-6.3.2-1.cdh6.3.2.p0.1605554-el7.parcel files/CDH-6.3.2-1.cdh6.3.2.p0.1605554-el7.parcel.sha256 /opt/cloudera/parcel-repo/
+[root@POCDT01 ~]# sha1sum /opt/cloudera/parcel-repo/CDH-6.3.2-1.cdh6.3.2.p0.1605554-el7.parcel | awk '{print $1}' > /opt/cloudera/parcel-repo/CDH-6.3.2-1.cdh6.3.2.p0.1605554-el7.parcel.sha
+[root@POCDT01 ~]# vim /opt/cloudera/parcel-repo/manifest.json
+[root@POCDT01 ~]# chown -R cloudera-scm:cloudera-scm /opt/cloudera/parcel-repo/*
+
+#13.启动Cloudera Manager
+[root@POCDT01 ~]# service cloudera-scm-server start
+#服务启动验证.PNG
+[root@POCDT01 ~]# less /var/log/cloudera-scm-server/cloudera-scm-server.log
+
+#14.进入Cloudera Manager配置
+http://10.30.102.28:7180/cmf/login
+admin/admin
+	#流程
+		#1.用户许可
+		#2.选择版本
+		#3.设置集群名称
+		#4.选择主机
+		#5.配置cloudera manager存储库
+		#6.选择JDK安装
+		#7.ssh登陆凭证
+		#8.选择服务(自定义->HDFS,YARN)
+		#9.自定义角色分配
+		#10.配置Reports Manager存储库
+		#11.配置更改
+		#12.添加服务
+		#13.Zookeeper 服务安装
+		#14.Zookeeper角色分配
+		#15.审核信息
+		#16.HDFS HA机制
+		#17.启用HDFS HA
+		#18.设置HDFS NameService名称
+		#19.分配HDFS角色
+		#20.审核更改信息
+		#21.启用YARN HA
+		#22.选择YARN角色
+	#问题
+		#Host命名不能大写
+		#网络问题
+
+#15.分发/etc/profile
+[root@pocdt01 ~]# pscp -h ~/hostList /etc/profile /etc/
+[root@pocdt01 ~]# pssh -h ~/hostList -i "source /etc/profile"
+
+#16.集群性能初步验证
+[root@pocdt01 ~]# sudo -u hdfs hadoop jar /opt/cloudera/parcels/CDH/lib/hadoop-mapreduce/hadoop-mapreduce-client-jobclient-tests.jar TestDFSIO -write -nrFiles 100 -size 128MB -resFile /tmp/TestDFSIO_results.log
+[root@pocdt01 ~]# sudo -u hdfs hadoop jar /opt/cloudera/parcels/CDH/lib/hadoop-mapreduce/hadoop-mapreduce-client-jobclient-tests.jar TestDFSIO -read -nrFiles 100 -size 128MB -resFile /tmp/TestDFSIO_results.log
+[root@pocdt01 ~]# sudo -u hdfs hadoop jar /opt/cloudera/parcels/CDH/lib/hadoop-mapreduce/hadoop-mapreduce-client-jobclient-tests.jar TestDFSIO -clean
+
+#17.hive安装
+[root@pocdt01 ~]# scp  /usr/share/java/mysql-connector-java.jar root@pocdt02:/usr/share/java/
+
+
+# hue
+http://10.30.102.29:8889/hue/accounts/login?next=/
+admin/admin
+
+http://10.30.102.29:8889/
+
+Hue集成HBase	-	Api错误：TSocket read 0 bytes
+cm-hue7
+cm-hue8
+cm-hue9
+	
+Api 错误：500 Server Error: Server Error for url: http://pocdt03:9090/
+cm-hue10
+cm-hue11
+
+
+# Anaconda 安装
+[root@pocdt09 ~]# bash Anaconda3-2020.11-Linux-x86_64.sh
+>>> ENTER
+
+Do you accept the license terms? [yes|no]
+[no] >>> yes
+
+Anaconda3 will now be installed into this location:
+/root/anaconda3
+
+  - Press ENTER to confirm the location
+  - Press CTRL-C to abort the installation
+  - Or specify a different location below
+
+[/root/anaconda3] >>> /opt/software/anaconda
+
+/opt/software/anaconda/bin/conda init
+
+conda config --set auto_activate_base false
+
+#退出会话
+
+# dolphinscheduler
+# https://dolphinscheduler.apache.org/zh-cn/docs/1.3.3/user_doc/cluster-deployment.html
+[root@pocdt07 ~]# mkdir /opt/software/
+[root@pocdt07 ~]# tar -zxvf apache-dolphinscheduler-incubating-1.3.3-dolphinscheduler-bin.tar.gz -C /opt/software/
+[root@pocdt07 ~]# mv /opt/software/apache-dolphinscheduler-incubating-1.3.3-dolphinscheduler-bin/ /opt/software/dolphinscheduler-bin
+[root@pocdt07 ~]# useradd dolphinscheduler
+[root@pocdt07 ~]# echo "dolphinscheduler123" | passwd --stdin dolphinscheduler
+[root@pocdt07 ~]# echo 'dolphinscheduler  ALL=(ALL)  NOPASSWD: NOPASSWD: ALL' >> /etc/sudoers
+[root@pocdt07 ~]# sed -i 's/Defaults    requirett/#Defaults    requirett/g' /etc/sudoers
+[root@pocdt08 ~]# useradd dolphinscheduler
+[root@pocdt08 ~]# echo "dolphinscheduler123" | passwd --stdin dolphinscheduler
+[root@pocdt08 ~]# echo 'dolphinscheduler  ALL=(ALL)  NOPASSWD: NOPASSWD: ALL' >> /etc/sudoers
+[root@pocdt08 ~]# sed -i 's/Defaults    requirett/#Defaults    requirett/g' /etc/sudoers
+
+
+[root@pocdt07 ~]# su - dolphinscheduler
+[dolphinscheduler@pocdt07 ~]$ ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
+[dolphinscheduler@pocdt07 ~]$ cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+[dolphinscheduler@pocdt07 ~]$ chmod 600 ~/.ssh/authorized_keys
+[dolphinscheduler@pocdt07 ~]$ ssh-copy-id -i .ssh/id_rsa.pub  dolphinscheduler@pocdt08
+[dolphinscheduler@pocdt07 ~]$ sudo chown -R dolphinscheduler:dolphinscheduler /opt/software/dolphinscheduler-bin
+[root@pocdt01 ~]# scp  /usr/share/java/mysql-connector-java.jar root@pocdt07:/opt/software/dolphinscheduler-bin/lib
+[dolphinscheduler@pocdt07 ~]$ vim /opt/software/dolphinscheduler-bin/conf/datasource.properties
+[dolphinscheduler@pocdt07 ~]$ sh /opt/software/dolphinscheduler-bin/script/create-dolphinscheduler.sh
+[dolphinscheduler@pocdt07 ~]$ vim /opt/software/dolphinscheduler-bin/conf/env/dolphinscheduler_env.sh
+[dolphinscheduler@pocdt07 ~]$ sudo ln -s /usr/java/jdk1.8.0_181-cloudera/bin/java /usr/bin/java
+[dolphinscheduler@pocdt08 ~]$ sudo ln -s /usr/java/jdk1.8.0_181-cloudera/bin/java /usr/bin/java
+[dolphinscheduler@pocdt07 ~]$ vim /opt/software/dolphinscheduler-bin/conf/config/install_config.conf
+[dolphinscheduler@pocdt07 ~]$ cd /opt/software/dolphinscheduler-bin/
+[dolphinscheduler@pocdt07 dolphinscheduler-bin]$ sh install.sh
+[dolphinscheduler@pocdt07 dolphinscheduler-bin]$ sudo ln -s /etc/hadoop/conf/core-site.xml /opt/software/dolphinscheduler/conf
+[dolphinscheduler@pocdt07 dolphinscheduler-bin]$ sudo ln -s /etc/hadoop/conf/hdfs-site.xml /opt/software/dolphinscheduler/conf
+[dolphinscheduler@pocdt08 dolphinscheduler-bin]$ sudo ln -s /etc/hadoop/conf/core-site.xml /opt/software/dolphinscheduler/conf
+[dolphinscheduler@pocdt08 dolphinscheduler-bin]$ sudo ln -s /etc/hadoop/conf/hdfs-site.xml /opt/software/dolphinscheduler/conf
+[dolphinscheduler@pocdt07 dolphinscheduler-bin]$ cd /opt/software/dolphinscheduler/bin
+[dolphinscheduler@pocdt07 bin]$ sh stop-all.sh
+[dolphinscheduler@pocdt07 bin]$ sh start-all.sh
+
+
+http://10.30.102.35:12345/dolphinscheduler/
+admin/dolphinscheduler123
+bigdata/Pass1234
+
+
+
+[root@pocdt01 ~]# pssh -h ~/hostList -i "useradd bigdata"
+[root@pocdt01 ~]# pssh -h ~/hostList -i "echo "Pass1234" | passwd --stdin bigdata"
+[root@pocdt01 ~]# pssh -h ~/hostList -i "echo 'bigdata  ALL=(ALL)  NOPASSWD: NOPASSWD: ALL' >> /etc/sudoers"
+
+
+
+
+
+
+
+# datax 
+[root@pocdt07 ~]# cd /opt/software/
+[root@pocdt07 software]# tar -xvf datax.tar.gz
+[root@pocdt07 software]# scp -r datax root@pocdt08:`pwd`
+[root@pocdt07 software]# rm -fr datax.tar.gz
 
