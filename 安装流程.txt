@@ -247,13 +247,20 @@ bigdata/Pass1234
 
 
 
-
-
-
-
 # datax 
 [root@pocdt07 ~]# cd /opt/software/
 [root@pocdt07 software]# tar -xvf datax.tar.gz
 [root@pocdt07 software]# scp -r datax root@pocdt08:`pwd`
 [root@pocdt07 software]# rm -fr datax.tar.gz
 
+
+# oracle client
+[root@pocdt09 ~]# ln -s /opt/software/anaconda/bin/pip /usr/bin/pip
+[root@pocdt09 ~]# rm -f /usr/bin/python
+[root@pocdt09 ~]# ln -s /opt/software/anaconda/bin/python /usr/bin/python
+[root@pocdt09 ~]# rpm -ivh oracle-instantclient19.9-basic-19.9.0.0.0-1.x86_64.rpm
+
+# 配置更改
+yarn-1
+spark-1
+hive-1
